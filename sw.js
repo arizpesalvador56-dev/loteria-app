@@ -1,5 +1,5 @@
 // Service worker: guarda la app para jugar sin internet (modo solo y modo cantor).
-const CACHE = 'loteria-barro-v3';
+const CACHE = 'loteria-barro-v5';
 const ARCHIVOS = [
   './', 'index.html', 'css/styles.css', 'manifest.webmanifest', 'icons/icono-barro.png',
   'js/app.js', 'js/data/cards.js',

@@ -5,7 +5,7 @@
   "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#C4DFCC",
-  "theme_color": "#C4DFCC",
+  "background_color": "#F6F1E6",
+  "theme_color": "#F6F1E6",
   "icons": [{ "src": "icons/icono-barro.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
 }

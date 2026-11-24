@@ -20,7 +20,7 @@ export const VELOCIDADES = {
   lento: { nombre: 'Lento', ms: 9000 },
   normal: { nombre: 'Normal', ms: 5500 },
   rapido: { nombre: 'Rápido', ms: 2500 },
-  manual: { nombre: 'Manual', ms: 0 },
+  manual: { nombre: 'A mi ritmo', ms: 0 },
 };
 const DIFICULTAD = {
   facil: { nombre: 'Fácil', reaccion: [2500, 5000] },
@@ -42,13 +42,14 @@ let perfil = almacen.cargar();
 const CONFIG_INICIAL = {
   figura: 'cualquier_linea',
   modalidad: 'una', // 'una' | 'etapas'
-  velocidad: 'normal',
-  rivales: 3,
-  dificultad: 'normal',
+  velocidad: 'manual',
+  rivales: 0,
+  dificultad: 'facil',
   numTablas: 1,
   automarcado: false,
   marcarAtrasadas: 'siempre',
-  penalizacion: 'pierde_ronda',
+  penalizacion: 'ninguna',
+  marcadoLibre: false,
   empate: 'repartir',
 };
 let config = { ...CONFIG_INICIAL, ...(perfil.ultimaConfig || {}) };
@@ -72,9 +73,7 @@ function cartaHTML(id, clase = '') {
 function naipeCantado(id) {
   if (!id) return cartaPorSalir();
   return `${cartaHTML(id, 'naipe')}
-    <button class="ampliar-naipe" data-ampliar aria-label="Ampliar la carta: ${esc(CARTA_POR_ID[id].nombre)}">
-      <span aria-hidden="true">Ampliar</span>
-    </button>`;
+    <button class="btn ampliar-naipe" data-ampliar aria-label="Ver carta grande: ${esc(CARTA_POR_ID[id].nombre)}">Ver carta grande</button>`;
 }
 
 function actualizarNaipe(contenedor, id) {
@@ -255,7 +254,7 @@ function anuncioSimulado({ tipo }) {
 
 function barra(titulo, extra = '') {
   return `<header class="barra">
-    <button class="btn icono" data-ir="inicio" aria-label="Regresar">←</button>
+    <button class="btn" data-ir="inicio">Regresar</button>
     <h2>${titulo}</h2>${extra}
   </header>`;
 }
@@ -303,40 +302,41 @@ document.addEventListener('click', (e) => {
 // ---------------------------------------------------------------- inicio
 
 pantallas.inicio = () => {
-  const muestra = [23, 1, 39];
   $app.innerHTML = `
   <section class="inicio">
-    <div class="inicio-saldo">
-      <span class="pill">${perfil.fichas} fichas</span>
-      ${perfil.premium ? '<span class="pill premium">★ Premium</span>' : ''}
+    <div class="portada-barro">
+      <h1 class="logo">Lotería<br>de barro</h1>
+      <img src="assets/barro/1.jpg" alt="" width="256" height="256">
     </div>
-    <h1 class="logo">¡Lotería!</h1>
-    <div class="abanico" aria-hidden="true">
-      ${muestra.map((id) => `<div>${cartaHTML(id)}</div>`).join('')}
-    </div>
-    <nav class="menu">
+    <nav class="menu" aria-label="Modos de juego">
       <button class="modo modo-celular" data-ir="nueva">
-        <img class="modo-icono" src="assets/barro/46.jpg" alt="" width="56" height="56">
-        <span><b>Jugar en el celular</b><small>Marca tu tabla y juega contra la app</small></span>
+        <span><b>Jugar en este celular</b><small>Usa la tabla que aparece en la pantalla.</small></span>
       </button>
       <button class="modo modo-cantor" data-ir="cantor">
-        <img class="modo-icono" src="assets/barro/43.jpg" alt="" width="56" height="56">
-        <span><b>Solo cantor</b><small>Canta las cartas para tus tablas físicas</small></span>
+        <span><b>Cantar cartas</b><small>Para jugar con tablas de cartón en la mesa.</small></span>
       </button>
-      <div class="menu-sec">
-        <button class="btn" data-ir="imprimir">Tablas para imprimir</button>
-        <button class="btn" data-ir="stats">Estadísticas</button>
-        <button class="btn" data-ir="ajustes">Ajustes</button>
-        <button class="btn morado" data-ir="premium">${perfil.premium ? 'Premium ★' : 'Premium'}</button>
-      </div>
     </nav>
-    <p class="nota">Las fichas son virtuales y no tienen valor en dinero.</p>
+    <details class="desplegable inicio-opciones">
+      <summary>Más opciones</summary>
+      <div class="menu-sec">
+        <button class="btn" data-ir="imprimir">Imprimir tablas</button>
+        <button class="btn" data-ir="stats">Mis partidas</button>
+        <button class="btn" data-ir="ajustes">Ajustes</button>
+        <button class="btn" data-ir="premium">Premium</button>
+      </div>
+    </details>
   </section>`;
 };
 
 // ---------------------------------------------------------------- nueva partida
 
 let tablasJugador = [];
+
+function instruccionFigura(figura) {
+  if (figura.id === 'cualquier_linea') return 'Marca cuatro cartas en fila, columna o diagonal.';
+  if (figura.id === 'llena') return 'Marca todas las cartas de tu tabla.';
+  return `Completa la figura: ${figura.nombre}.`;
+}
 
 function asegurarTablas() {
   const max = anuncios.maxTablas(perfil);
@@ -352,24 +352,27 @@ pantallas.nueva = () => {
   const max = anuncios.maxTablas(perfil);
   const figurasDisp = [...ORDEN_FIGURAS, ...perfil.figurasPersonalizadas.map((f) => f.id)];
   const figura = config.modalidad === 'etapas' ? FIGURAS.cualquier_linea : obtenerFigura(config.figura) || FIGURAS.cualquier_linea;
-  const regla = config.modalidad === 'etapas' ? 'Juega por etapas' : `Gana con: ${figura.nombre}`;
+  const regla = instruccionFigura(figura);
   const abiertas = new Set([...$app.querySelectorAll('details[data-seccion][open]')].map((d) => d.dataset.seccion));
   const foco = document.activeElement;
   const focoId = $app.contains(foco) ? foco.id : '';
   const focoDatos = $app.contains(foco) ? { ...foco.dataset } : {};
 
   $app.innerHTML = `
-  ${barra('Nueva partida')}
+  ${barra('Jugar en este celular')}
   <section class="seccion preparada">
     <div class="resumen-juego">
       ${miniFig(figura, true)}
       <div>
         <h3>${esc(regla)}</h3>
-        <p>${config.numTablas} ${config.numTablas === 1 ? 'tabla' : 'tablas'} · ${config.rivales} ${config.rivales === 1 ? 'rival' : 'rivales'} · Entrada: 5 fichas</p>
+        <p>${config.velocidad === 'manual' ? 'Tú decides cuándo sacar cada carta.' : 'Las cartas salen automáticamente.'}</p>
       </div>
     </div>
-    <button class="btn grito" id="empezar">¡A jugar!</button>
+    <button class="btn grito" id="empezar">Empezar partida</button>
+    <p class="nota">Entrada de 5 fichas del juego.</p>
   </section>
+  <details class="seccion desplegable personalizar" data-seccion="personalizar" ${abiertas.has('personalizar') ? 'open' : ''}>
+    <summary>Cambiar reglas o ritmo</summary>
   <details class="seccion desplegable" data-seccion="figura" ${abiertas.has('figura') ? 'open' : ''}>
     <summary>Figura y modalidad</summary>
     ${opciones('modalidad', { una: 'Una figura', etapas: 'Por etapas' }, config.modalidad)}
@@ -383,7 +386,7 @@ pantallas.nueva = () => {
   <details class="seccion desplegable" data-seccion="ritmo" ${abiertas.has('ritmo') ? 'open' : ''}>
     <summary>Ritmo y rivales</summary>
     <div class="fila"><span>Velocidad del cantor</span>${opciones('velocidad', Object.fromEntries(Object.entries(VELOCIDADES).map(([k, v]) => [k, v.nombre])), config.velocidad)}</div>
-    <div class="fila"><span>Rivales de la app</span>${paso('rivales', config.rivales, 1, 7)}</div>
+    <div class="fila"><span>Rivales de la app</span>${paso('rivales', config.rivales, 0, 7)}</div>
     <div class="fila"><span>Qué tan rápido gritan</span>${opciones('dificultad', Object.fromEntries(Object.entries(DIFICULTAD).map(([k, v]) => [k, v.nombre])), config.dificultad)}</div>
   </details>
   <details class="seccion desplegable" data-seccion="tablas" ${abiertas.has('tablas') ? 'open' : ''}>
@@ -399,8 +402,10 @@ pantallas.nueva = () => {
     <summary>Reglas adicionales</summary>
     <label class="fila"><span>Automarcado</span><input type="checkbox" class="switch" data-chk="automarcado" ${config.automarcado ? 'checked' : ''}></label>
     <div class="fila"><span>Marcar cartas atrasadas</span>${opciones('marcarAtrasadas', { siempre: 'Siempre', antes_siguiente: 'Solo la última' }, config.marcarAtrasadas)}</div>
+    <label class="fila"><span>Permitir marcar cartas que aún no salen</span><input type="checkbox" class="switch" data-chk="marcadoLibre" ${config.marcadoLibre ? 'checked' : ''}></label>
     <div class="fila"><span>Grito en falso</span>${opciones('penalizacion', { ninguna: 'Nada', pierde_ronda: 'Pierde la ronda', paga_pozo: 'Paga otra vez' }, config.penalizacion)}</div>
     <div class="fila"><span>Empate</span>${opciones('empate', { repartir: 'Repartir', desempate: 'Desempate', sorteo: 'Sorteo' }, config.empate)}</div>
+  </details>
   </details>`;
 
   if (focoId) document.getElementById(focoId)?.focus({ preventScroll: true });
@@ -480,7 +485,7 @@ function tablaHTML(celdas, idx, ronda, ganadoras = null) {
       const marcada = ronda?.estaMarcada('yo', idx, i);
       const gan = ganadoras?.has(i);
       if (!ronda) return `<div class="celda">${cartaHTML(id)}</div>`;
-      return `<button class="celda ${marcada ? 'marcada' : ''} ${gan ? 'ganadora' : ''}" data-celda="${i}" aria-label="${esc(CARTA_POR_ID[id].nombre)}" aria-pressed="${Boolean(marcada)}">${cartaHTML(id)}${marcada ? fichaSVG() : ''}</button>`;
+      return `<button class="celda ${marcada ? 'marcada' : ''} ${gan ? 'ganadora' : ''}" data-celda="${i}" data-id-carta="${id}" aria-label="${esc(CARTA_POR_ID[id].nombre)}" aria-pressed="${Boolean(marcada)}">${cartaHTML(id)}${marcada ? fichaSVG() : ''}<span class="estado-celda" aria-hidden="true"></span></button>`;
     }).join('')}</div>
   </div>`;
 }
@@ -503,7 +508,7 @@ function construirRonda() {
       marcarAtrasadas: config.marcarAtrasadas,
       penalizacion: config.penalizacion,
       empate: config.empate,
-      marcadoLibre: true, // permite fichas en cartas no cantadas para que el grito en falso tenga sentido
+      marcadoLibre: config.marcadoLibre,
       entrada: 5,
     },
   });
@@ -530,34 +535,41 @@ function renderJuego() {
   const vel = VELOCIDADES[config.velocidad];
   $app.innerHTML = `
   <header class="barra barra-juego">
-    <button class="btn icono" id="salir" aria-label="Salir">✕</button>
-    <h2>${miniFig(fig)} <span id="fig-nombre">${esc(fig.nombre)}</span></h2>
-    <span class="pill" id="pozo">${r.pozoEtapas[r.etapa] ?? 0} fichas</span>
-    <span class="pill" id="contador" aria-label="Cartas cantadas">0/54</span>
+    <h2>Tu partida</h2>
+    <button class="btn" id="salir">Salir</button>
   </header>
-  <section class="cantor">
+  <section class="cantor" aria-label="Carta cantada">
     <div class="actual carta-en-juego" id="actual">${naipeCantado(null)}</div>
     <div class="info">
-      <span class="nota etiqueta-carta">Carta cantada</span>
-      <div class="verso" id="verso" role="status">Marca la carta en tu tabla cuando la escuches.</div>
+      <span class="etiqueta-carta">Carta cantada</span>
+      <div class="verso" id="verso">Preparando la primera carta…</div>
       <div class="progreso" ${vel.ms ? '' : 'hidden'}><i id="barra-tiempo"></i></div>
-      <div class="controles controles-partida">
-        ${vel.ms ? '<button class="btn chico" id="pausa">⏸ Pausa</button>' : '<button class="btn chico amarillo" id="siguiente" disabled>Siguiente ▶</button>'}
-        <button class="btn chico icono" id="repetir" disabled aria-label="Repetir la última carta">🔊</button>
-      </div>
-      <div class="historial" id="historial" aria-label="Cartas cantadas"></div>
+    </div>
+    <div class="controles controles-partida">
+      ${vel.ms ? '<button class="btn primario" id="pausa">Pausar el canto</button>' : '<button class="btn primario" id="siguiente" disabled>Siguiente carta</button>'}
+      <button class="btn" id="repetir" disabled>Repetir carta</button>
     </div>
   </section>
-  <div class="rivales" id="rivales"></div>
+  <p class="guia-tabla" id="guia-tabla" role="status">Cuando salga una carta, búscala en tu tabla y tócala.</p>
   <section class="tablas" id="tablas">${r.jugador('yo').tablas.map((t, k) => tablaHTML(t, k, r)).join('')}</section>
-  <div class="grito-wrap"><button class="btn grito" id="grito">¡Lotería!</button></div>`;
+  <section class="cantar-loteria">
+    <p id="regla-juego">${esc(instruccionFigura(fig))}</p>
+    <button class="btn grito" id="grito" aria-describedby="regla-juego aviso-grito">¡Lotería!</button>
+    <p id="aviso-grito" class="aviso-grito" role="status"></p>
+  </section>
+  <details class="seccion desplegable detalles-ronda">
+    <summary>Cartas que salieron y fichas</summary>
+    <div class="fila"><span id="pozo">${r.pozoEtapas[r.etapa] ?? 0} fichas en juego</span><span id="contador">0 de 54 cartas</span></div>
+    <div class="historial" id="historial" aria-label="Cartas cantadas"></div>
+    <div class="rivales" id="rivales"></div>
+  </details>`;
 
   renderRivales();
   $('#salir').onclick = () => {
     const estabaPausado = J.pausado;
     const seguir = () => { cerrarDialogo(); pausar(estabaPausado); };
-    const capa = dialogo(`<h2>¿Salir de la ronda?</h2><p>Perderás tu entrada al pozo.</p>
-      <div class="acciones"><button class="btn primario" id="si-salir">Salir</button><button class="btn" id="no-salir">Volver a la ronda</button></div>`, { alCerrar: seguir });
+    const capa = dialogo(`<h2>¿Salir de la partida?</h2><p>Se descontarán las fichas que usaste para entrar.</p>
+      <div class="acciones"><button class="btn primario" id="no-salir">Seguir jugando</button><button class="btn" id="si-salir">Salir al inicio</button></div>`, { alCerrar: seguir });
     pausar(true);
     $('#si-salir', capa).onclick = () => {
       if (!J.terminado) registrarRonda();
@@ -580,7 +592,7 @@ function renderJuego() {
       pausar(estabaPausado);
     });
   };
-  $('#grito').onclick = () => grita('yo');
+  $('#grito').onclick = intentarCantarLoteria;
   $('#tablas').addEventListener('click', alTocarCelda);
 }
 
@@ -636,7 +648,7 @@ function siguienteCarta() {
   J.textoCantado = voz.textoCarta(c, perfil.modoVoz);
   const verso = soloVerso(id, J.textoCantado);
   $('#verso').innerHTML = `<b>${esc(c.nombre)}</b>${esc(verso)}`;
-  $('#contador').textContent = `${r.cantadas.length}/54`;
+  $('#contador').textContent = `${r.cantadas.length} de 54 cartas`;
   const h = $('#historial');
   h.insertAdjacentHTML('afterbegin', cartaHTML(id));
   $('#repetir').disabled = false;
@@ -644,6 +656,7 @@ function siguienteCarta() {
   sonido('carta');
   voz.decir(J.textoCantado, perfil.voz);
   if (config.automarcado) refrescarTablas();
+  else guiarJugada();
   actualizarBotonGrito();
   renderRivales();
   revisarBots();
@@ -653,6 +666,7 @@ function siguienteCarta() {
 function refrescarTablas(ganadorasPorTabla = {}) {
   const r = J.ronda;
   $('#tablas').innerHTML = r.jugador('yo').tablas.map((t, k) => tablaHTML(t, k, r, ganadorasPorTabla[k])).join('');
+  guiarJugada();
 }
 
 function actualizarBotonGrito() {
@@ -660,10 +674,53 @@ function actualizarBotonGrito() {
   const b = $('#grito');
   if (!b) return;
   const fuera = r.eliminados.has('yo');
+  const lista = !fuera && !!r.completo('yo');
   b.disabled = fuera;
   b.textContent = fuera ? 'Fuera de esta ronda' : '¡Lotería!';
-  // Con automarcado avisamos cuando ya se puede gritar.
-  b.classList.toggle('listo', !fuera && config.automarcado && !!r.completo('yo'));
+  b.classList.toggle('listo', lista);
+  $('#aviso-grito').textContent = '';
+  if (lista) $('#guia-tabla').textContent = 'Ya puedes cantar ¡Lotería! El botón está debajo de tu tabla.';
+}
+
+function guiarJugada(mensaje = '') {
+  const id = J.cartaCantada;
+  if (!id) return;
+  let estaEnTabla = false;
+  let faltaMarcar = false;
+  const fuera = J.ronda.eliminados.has('yo');
+  for (const celda of $('#tablas').querySelectorAll('[data-id-carta]')) {
+    const coincide = Number(celda.dataset.idCarta) === id;
+    const pendiente = !fuera && coincide && celda.getAttribute('aria-pressed') === 'false';
+    celda.classList.toggle('por-marcar', pendiente);
+    $('.estado-celda', celda).textContent = pendiente ? 'Toca' : celda.classList.contains('marcada') ? '✓' : '';
+    estaEnTabla ||= coincide;
+    faltaMarcar ||= pendiente;
+  }
+  const nombre = CARTA_POR_ID[id].nombre;
+  const continuar = config.velocidad === 'manual' ? 'Toca Siguiente carta.' : 'Espera la siguiente carta.';
+  $('#guia-tabla').textContent = mensaje || (fuera
+    ? 'Puedes seguir viendo las cartas hasta que termine la ronda.'
+    : faltaMarcar
+      ? `Busca ${nombre} y toca la carta señalada.`
+      : `${estaEnTabla ? `${nombre} ya está marcada.` : `${nombre} no está en tu tabla.`} ${continuar}`);
+}
+
+function intentarCantarLoteria() {
+  if (J.ronda.completo('yo')) return grita('yo');
+  if (config.penalizacion === 'ninguna') {
+    const aviso = $('#aviso-grito');
+    aviso.textContent = 'Todavía te faltan cartas para completar la figura.';
+    aviso.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  const estabaPausado = J.pausado;
+  const seguir = () => { cerrarDialogo(); pausar(estabaPausado); };
+  pausar(true);
+  const consecuencia = config.penalizacion === 'pierde_ronda' ? 'Saldrás de esta ronda' : 'Se descontarán 5 fichas';
+  const capa = dialogo(`<h2>Aún te faltan cartas</h2><p>${consecuencia} si cantas Lotería ahora.</p>
+    <div class="acciones"><button class="btn primario" id="seguir-marcando">Seguir marcando</button><button class="btn" id="confirmar-grito">Cantar de todos modos</button></div>`, { alCerrar: seguir });
+  $('#seguir-marcando', capa).onclick = seguir;
+  $('#confirmar-grito', capa).onclick = () => { cerrarDialogo(); grita('yo'); };
 }
 
 function alTocarCelda(e) {
@@ -672,13 +729,16 @@ function alTocarCelda(e) {
   const tablaIdx = Number(celda.closest('[data-tabla]').dataset.tabla);
   const i = Number(celda.dataset.celda);
   const r = J.ronda;
+  if (r.eliminados.has('yo')) return;
   const res = r.marcar('yo', tablaIdx, i);
   if (!res.ok) {
     celda.classList.remove('error');
     void celda.offsetWidth;
     celda.classList.add('error');
     sonido('error');
-    toast(res.motivo === 'atrasada' ? 'Con esta regla solo puedes marcar la última carta' : 'Esa carta todavía no sale');
+    const nombre = CARTA_POR_ID[celda.dataset.idCarta].nombre;
+    if (res.motivo === 'no_cantada') guiarJugada(`${nombre} todavía no sale.`);
+    if (res.motivo === 'atrasada') guiarJugada('Con esta regla, solo puedes marcar la última carta.');
     return;
   }
   celda.classList.toggle('marcada', res.marcada);
@@ -689,6 +749,7 @@ function alTocarCelda(e) {
     sonido('marca');
     vibrar(15);
   }
+  guiarJugada();
   actualizarBotonGrito();
 }
 
@@ -716,7 +777,7 @@ function pausar(si) {
   if (!J) return;
   J.pausado = si;
   const bp = $('#pausa');
-  if (bp) bp.textContent = si ? '▶ Seguir' : '⏸ Pausa';
+  if (bp) bp.textContent = si ? 'Seguir cantando' : 'Pausar el canto';
   const barraT = $('#barra-tiempo');
   if (si) {
     clearTimeout(J.timer);
@@ -753,7 +814,8 @@ function grita(jugadorId) {
         $('#seguir', capa).onclick = () => {
           cerrarDialogo();
           actualizarBotonGrito();
-          $('#pozo').textContent = `${r.pozoEtapas[r.etapa]} fichas`;
+          $('#pozo').textContent = `${r.pozoEtapas[r.etapa]} fichas en juego`;
+          guiarJugada();
           J.pausado = false;
           if (r.eliminados.has('yo') && r.jugadores.every((j) => !j.esBot || r.eliminados.has(j.id))) return finDeRonda();
           revisarBots();
@@ -780,7 +842,7 @@ function mostrarResultadoEtapa(res) {
   refrescarTablas(mias);
   if (resultado.desempate.length) {
     resultado.desempate.forEach((id) => $('#historial').insertAdjacentHTML('afterbegin', cartaHTML(id)));
-    $('#contador').textContent = `${r.cantadas.length}/54`;
+    $('#contador').textContent = `${r.cantadas.length} de 54 cartas`;
   }
   if (ganeYo) {
     confeti();
@@ -804,9 +866,8 @@ function mostrarResultadoEtapa(res) {
       <div class="acciones"><button class="btn primario" id="continuar">Seguir cantando</button></div>`, { cerrable: false });
     $('#continuar', capa).onclick = () => {
       cerrarDialogo();
-      $('#fig-nombre').textContent = r.figuraActual.nombre;
-      $('.barra .mini-fig').outerHTML = miniFig(r.figuraActual);
-      $('#pozo').textContent = `${r.pozoEtapas[r.etapa]} fichas`;
+      $('#regla-juego').textContent = instruccionFigura(r.figuraActual);
+      $('#pozo').textContent = `${r.pozoEtapas[r.etapa]} fichas en juego`;
       J.pausado = false;
       renderRivales();
       actualizarBotonGrito();
@@ -875,10 +936,10 @@ function detenerJuego() {
 // Para jugar con tablas de cartón: un toque para empezar y se termina cuando quieran.
 
 let K = null;
-const VEL_CANTOR = { lento: 'Lento', normal: 'Normal', rapido: 'Rápido', manual: 'Manual' };
+const VEL_CANTOR = Object.fromEntries(Object.entries(VELOCIDADES).map(([id, velocidad]) => [id, velocidad.nombre]));
 
 function nuevaBarajaCantor() {
-  const vel = K?.velocidad || perfil.velCantor || 'normal';
+  const vel = K?.velocidad || perfil.velCantor || 'manual';
   K = { baraja: barajar(IDS), i: 0, timer: null, pausado: false, velocidad: vel, inicio: 0, textoCantado: '' };
 }
 
@@ -889,17 +950,15 @@ pantallas.cantor = () => {
 
 function renderCantorInicio() {
   $app.innerHTML = `
-  ${barra('Solo cantor')}
+  ${barra('Cantar cartas')}
   <section class="cantor-inicio">
-    <div class="abanico" aria-hidden="true">
-      ${[35, 43, 48].map((id) => `<div>${cartaHTML(id)}</div>`).join('')}
-    </div>
-    <p class="subtitulo">Repartan las tablas y los frijoles. La app canta y guarda las cartas que salen.</p>
-    <button class="btn grito" id="k-empezar">¡Empezar a cantar!</button>
-    <div class="cantor-vel">
-      <span class="nota">Velocidad</span>
+    <img class="portada-cantor" src="assets/barro/43.jpg" alt="" width="256" height="256">
+    <p class="subtitulo">Repartan sus tablas de cartón y sus frijoles.</p>
+    <button class="btn primario bloque" id="k-empezar">Cantar la primera carta</button>
+    <details class="seccion desplegable bloque">
+      <summary>Cambiar ritmo</summary>
       ${opciones('k-vel', VEL_CANTOR, K.velocidad)}
-    </div>
+    </details>
   </section>`;
   $app.querySelectorAll('[data-opt="k-vel"]').forEach((b) => (b.onclick = () => {
     cambiarVelocidadCantor(b);
@@ -926,19 +985,19 @@ function renderCantor() {
   const manual = K.velocidad === 'manual';
   $app.innerHTML = `
   <header class="barra">
-    <h2>Solo cantor</h2>
-    <span class="pill" id="k-cuenta" aria-label="Cartas cantadas">${K.i}/54</span>
-    <button class="btn chico" id="k-terminar">Terminar</button>
+    <h2>Cantar cartas</h2>
+    <button class="btn" id="k-terminar">Terminar</button>
   </header>
   <div class="cantor-solo">
     <section class="zona-cantor">
       <div class="grande carta-en-juego" id="k-carta">${naipeCantado(actual)}</div>
       <p class="verso" id="k-verso" role="status">${actual ? `<span class="solo-lector">${esc(CARTA_POR_ID[actual].nombre)}. </span>${esc(soloVerso(actual, K.textoCantado))}` : '¡Se va y se corre!'}</p>
+      <p class="nota cuenta-cantor" id="k-cuenta">${K.i} de 54 cartas</p>
       <div class="progreso" ${manual ? 'hidden' : ''}><i id="k-barra"></i></div>
       <div class="controles controles-cantor">
-        <button class="btn" id="k-play" ${manual ? 'hidden' : ''} ${actual ? '' : 'disabled'}>${K.pausado ? '▶ Seguir' : '⏸ Pausa'}</button>
-        <button class="btn amarillo" id="k-sig" ${actual ? '' : 'disabled'}>Siguiente ▶</button>
-        <button class="btn icono" id="k-rep" ${actual ? '' : 'disabled'} aria-label="Repetir la carta">🔊</button>
+        <button class="btn" id="k-play" ${manual ? 'hidden' : ''} ${actual ? '' : 'disabled'}>${K.pausado ? 'Seguir cantando' : 'Pausar el canto'}</button>
+        <button class="btn primario" id="k-sig" ${actual ? '' : 'disabled'}>Siguiente carta</button>
+        <button class="btn" id="k-rep" ${actual ? '' : 'disabled'}>Repetir carta</button>
       </div>
       <button class="btn grito" id="k-loteria" ${actual ? '' : 'disabled'}>¡Alguien gritó Lotería!</button>
     </section>
@@ -982,7 +1041,7 @@ function renderCantor() {
 function pausarCantor(si) {
   K.pausado = si;
   clearTimeout(K.timer);
-  $('#k-play').textContent = si ? '▶ Seguir' : '⏸ Pausa';
+  $('#k-play').textContent = si ? 'Seguir cantando' : 'Pausar el canto';
   $('#k-barra').classList.remove('corre');
   if (!si && K.i) programarK();
   if (!si && !K.i) K.timer = setTimeout(cantarK, 1400);
@@ -997,7 +1056,7 @@ function cantarK() {
   K.textoCantado = voz.textoCarta(c, perfil.modoVoz);
   actualizarNaipe($('#k-carta'), id);
   $('#k-verso').innerHTML = `<span class="solo-lector">${esc(c.nombre)}. </span>${esc(soloVerso(id, K.textoCantado))}`;
-  $('#k-cuenta').textContent = `${K.i}/54`;
+  $('#k-cuenta').textContent = `${K.i} de 54 cartas`;
   $('#k-registro-cuenta').textContent = K.i;
   $('#k-registro-vacio').hidden = true;
   $('#k-registro').insertAdjacentHTML('afterbegin', cartaHTML(id));
