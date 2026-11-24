@@ -1,0 +1,11 @@
+{
+  "name": "¡Lotería!",
+  "short_name": "Lotería",
+  "lang": "es-MX",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF6EC",
+  "theme_color": "#E8416F",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
