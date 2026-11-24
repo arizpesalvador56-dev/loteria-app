@@ -251,8 +251,14 @@ pantallas.inicio = () => {
       ${muestra.map((id, k) => `<div style="transform:rotate(${(k - 2) * 9}deg) translateY(${Math.abs(k - 2) * 8}px)">${cartaHTML(id)}</div>`).join('')}
     </div>
     <nav class="menu">
-      <button class="btn primario" data-ir="nueva">Jugar</button>
-      <button class="btn amarillo" data-ir="cantor">Modo cantor</button>
+      <button class="modo modo-celular" data-ir="nueva">
+        <span class="modo-icono" aria-hidden="true">📱</span>
+        <span><b>Jugar en el celular</b><small>Tu tabla en la pantalla contra otros jugadores</small></span>
+      </button>
+      <button class="modo modo-cantor" data-ir="cantor">
+        <span class="modo-icono" aria-hidden="true">📣</span>
+        <span><b>Solo cantor</b><small>Para jugar con tablas físicas. Un toque y empieza</small></span>
+      </button>
       <div class="menu-sec">
         <button class="btn" data-ir="imprimir">Tablas para imprimir</button>
         <button class="btn" data-ir="stats">Estadísticas</button>
@@ -778,70 +784,193 @@ function detenerJuego() {
   limpiarBots();
 }
 
-// ---------------------------------------------------------------- modo cantor
+// ---------------------------------------------------------------- modo solo cantor
+// Para jugar con tablas de cartón: un toque para empezar y se termina cuando quieran.
 
 let K = null;
+const VEL_CANTOR = { lento: 'Lento', normal: 'Normal', rapido: 'Rápido', manual: 'Manual' };
+
+function nuevaBarajaCantor() {
+  const vel = K?.velocidad || perfil.velCantor || 'normal';
+  K = { baraja: barajar(IDS), i: 0, timer: null, pausado: false, velocidad: vel, inicio: 0 };
+}
 
 pantallas.cantor = () => {
-  K = { baraja: barajar(IDS), i: 0, timer: null, pausado: true, velocidad: config.velocidad === 'manual' ? 'normal' : config.velocidad };
-  renderCantor();
+  nuevaBarajaCantor();
+  renderCantorInicio();
 };
+
+function renderCantorInicio() {
+  $app.innerHTML = `
+  ${barra('Solo cantor')}
+  <section class="cantor-inicio">
+    <div class="abanico" aria-hidden="true">
+      ${[35, 43, 48].map((id, k) => `<div style="transform:rotate(${(k - 1) * 10}deg) translateY(${Math.abs(k - 1) * 8}px)">${cartaHTML(id)}</div>`).join('')}
+    </div>
+    <p class="subtitulo">Repartan sus tablas de cartón y sus frijoles.<br>La app canta las cartas y lleva la cuenta.</p>
+    <button class="btn grito" id="k-empezar">¡Empezar a cantar!</button>
+    <div class="cantor-vel">
+      <span class="nota">Velocidad</span>
+      ${opciones('k-vel', VEL_CANTOR, K.velocidad)}
+    </div>
+  </section>`;
+  $app.querySelectorAll('[data-opt="k-vel"]').forEach((b) => (b.onclick = () => {
+    K.velocidad = b.dataset.val;
+    almacen.actualizar((p) => { p.velCantor = K.velocidad; });
+    renderCantorInicio();
+  }));
+  $('#k-empezar').onclick = () => {
+    K.inicio = Date.now();
+    voz.decir('¡Se va y se corre!', perfil.voz);
+    renderCantor();
+    K.timer = setTimeout(() => cantarK(), 1400);
+  };
+}
 
 function renderCantor() {
   const salidas = new Set(K.baraja.slice(0, K.i));
   const actual = K.i ? K.baraja[K.i - 1] : null;
+  const manual = K.velocidad === 'manual';
   $app.innerHTML = `
-  ${barra('Modo cantor', `<span class="pill">${K.i}/54</span>`)}
-  <p class="nota" style="margin-top:0">Para jugar con tus tablas de cartón: la app canta y lleva el historial.</p>
+  <header class="barra">
+    <h2>Solo cantor</h2>
+    <span class="pill" id="k-cuenta">${K.i}/54</span>
+    <button class="btn chico" id="k-terminar">Terminar</button>
+  </header>
   <div class="cantor-solo">
     <div>
-      <div class="grande">${actual ? cartaHTML(actual) : cartaPorSalir()}</div>
-      <p class="verso" style="text-align:center" id="k-verso">${actual ? `<b>${esc(CARTA_POR_ID[actual].nombre)}</b>` : 'Toca “Empezar” cuando estén listos.'}</p>
+      <div class="grande" id="k-carta">${actual ? cartaHTML(actual) : cartaPorSalir()}</div>
+      <p class="verso" style="text-align:center" id="k-verso">${actual ? `<b>${esc(CARTA_POR_ID[actual].nombre)}</b>` : '¡Se va y se corre!'}</p>
       <div class="progreso" style="margin:8px 0"><i id="k-barra"></i></div>
       <div class="controles" style="justify-content:center">
-        <button class="btn primario" id="k-play">${K.pausado ? (K.i ? '▶ Seguir' : '▶ Empezar') : '⏸ Pausa'}</button>
-        <button class="btn amarillo" id="k-sig">Siguiente</button>
-        <button class="btn" id="k-rep">🔊</button>
-        <button class="btn" id="k-reset">↺ Nueva</button>
+        ${manual ? '' : `<button class="btn ${K.pausado ? 'primario' : ''}" id="k-play">${K.pausado ? '▶ Seguir' : '⏸ Pausa'}</button>`}
+        <button class="btn amarillo" id="k-sig">Siguiente ▶</button>
+        <button class="btn icono" id="k-rep" aria-label="Repetir la carta">🔊</button>
       </div>
-      <div style="margin-top:12px">${opciones('k-vel', { lento: 'Lento', normal: 'Normal', rapido: 'Rápido' }, K.velocidad)}</div>
+      <button class="btn grito" id="k-loteria" style="margin-top:12px">¡Alguien gritó Lotería!</button>
+      <div style="margin-top:12px">${opciones('k-vel', VEL_CANTOR, K.velocidad)}</div>
     </div>
     <div>
-      <h3 style="margin:4px 0 8px">Baraja (las que ya salieron se iluminan)</h3>
+      <h3 style="margin:4px 0 8px">Cartas que ya salieron</h3>
       <div class="baraja-grid">${IDS.map((id) => cartaHTML(id, salidas.has(id) ? 'salio' : '')).join('')}</div>
     </div>
   </div>`;
-  $('#k-play').onclick = () => { K.pausado = !K.pausado; if (!K.pausado) cantarK(); else { clearTimeout(K.timer); renderCantor(); } };
-  $('#k-sig').onclick = () => { clearTimeout(K.timer); cantarK(true); };
+  const bp = $('#k-play');
+  if (bp) bp.onclick = () => {
+    K.pausado = !K.pausado;
+    if (K.pausado) clearTimeout(K.timer);
+    renderCantor();
+    if (!K.pausado) programarK();
+  };
+  $('#k-sig').onclick = () => { clearTimeout(K.timer); cantarK(); };
   $('#k-rep').onclick = () => actual && voz.decir(voz.textoCarta(CARTA_POR_ID[actual], perfil.modoVoz), perfil.voz);
-  $('#k-reset').onclick = () => { clearTimeout(K.timer); pantallas.cantor(); };
-  $app.querySelectorAll('[data-opt="k-vel"]').forEach((b) => (b.onclick = () => { K.velocidad = b.dataset.val; renderCantor(); if (!K.pausado) programarK(); }));
+  $('#k-terminar').onclick = () => terminarCantor('¿Terminar la partida?');
+  $('#k-loteria').onclick = verificarCantor;
+  $app.querySelectorAll('[data-opt="k-vel"]').forEach((b) => (b.onclick = () => {
+    K.velocidad = b.dataset.val;
+    almacen.actualizar((p) => { p.velCantor = K.velocidad; });
+    clearTimeout(K.timer);
+    if (K.velocidad === 'manual') K.pausado = false;
+    renderCantor();
+    if (!K.pausado && K.velocidad !== 'manual') programarK();
+  }));
 }
 
-function cantarK(manual = false) {
-  if (K.i >= 54) { toast('Se acabó la baraja'); K.pausado = true; return renderCantor(); }
+function cantarK() {
+  if (!K) return;
+  if (K.i >= 54) return terminarCantor('Se acabaron las cartas', true);
   K.i++;
   const id = K.baraja[K.i - 1];
   renderCantor();
-  const texto = voz.textoCarta(CARTA_POR_ID[id], perfil.modoVoz);
-  const verso = texto.replace(`¡${CARTA_POR_ID[id].nombre}!`, '').trim();
-  if (perfil.modoVoz === 'verso') $('#k-verso').innerHTML = `<b>${esc(CARTA_POR_ID[id].nombre)}</b>${esc(verso)}`;
+  const c = CARTA_POR_ID[id];
+  const texto = voz.textoCarta(c, perfil.modoVoz);
+  const verso = texto.replace(`¡${c.nombre}!`, '').trim();
+  if (perfil.modoVoz === 'verso') $('#k-verso').innerHTML = `<b>${esc(c.nombre)}</b>${esc(verso)}`;
   voz.decir(texto, perfil.voz);
   sonido('carta');
-  if (!K.pausado && !manual) programarK();
-  else if (!K.pausado) programarK();
+  if (!K.pausado && K.velocidad !== 'manual') programarK();
 }
 
 function programarK() {
   clearTimeout(K.timer);
   const ms = VELOCIDADES[K.velocidad].ms;
+  if (!ms) return;
   const b = $('#k-barra');
-  if (b) { b.style.animationDuration = ms + 'ms'; b.classList.add('corre'); }
+  if (b) {
+    b.classList.remove('corre');
+    void b.offsetWidth;
+    b.style.animationDuration = ms + 'ms';
+    b.classList.add('corre');
+  }
   K.timer = setTimeout(() => cantarK(), ms);
+}
+
+/** Alguien gritó: se pausa y se muestran las cartas cantadas para revisar su tabla. */
+function verificarCantor() {
+  clearTimeout(K.timer);
+  const estabaPausado = K.pausado;
+  K.pausado = true;
+  $('#k-barra')?.classList.remove('corre');
+  voz.decir('¡Lotería! A revisar la tabla.', perfil.voz);
+  vibrar([60, 40, 60]);
+  const salidas = K.baraja.slice(0, K.i);
+  const capa = dialogo(`
+    <div class="grito-grande" style="font-size:48px">¡Lotería!</div>
+    <p>Revisen la tabla con las ${salidas.length} cartas que han salido:</p>
+    <div class="baraja-grid" style="grid-template-columns:repeat(auto-fill,minmax(48px,1fr))">${salidas.map((id) => cartaHTML(id, 'salio')).join('')}</div>
+    <div class="acciones">
+      <button class="btn verde" id="k-gano">✓ Sí ganó</button>
+      <button class="btn" id="k-falso">✗ Fue en falso, seguir cantando</button>
+    </div>`, { cerrable: false });
+  $('#k-gano', capa).onclick = () => {
+    confeti();
+    sonido('gana');
+    terminarCantor('¡Tenemos ganador!', true);
+  };
+  $('#k-falso', capa).onclick = () => {
+    cerrarDialogo();
+    K.pausado = estabaPausado;
+    renderCantor();
+    if (!K.pausado && K.velocidad !== 'manual') programarK();
+  };
+}
+
+/** Termina cuando ellos quieran. `final` = ya terminó, solo ofrecer otra partida. */
+function terminarCantor(titulo, final = false) {
+  clearTimeout(K.timer);
+  const estabaPausado = K.pausado;
+  K.pausado = true;
+  $('#k-barra')?.classList.remove('corre');
+  const min = K.inicio ? Math.max(1, Math.round((Date.now() - K.inicio) / 60000)) : 0;
+  const capa = dialogo(`
+    <h2>${esc(titulo)}</h2>
+    <p>Salieron <b>${K.i}</b> de 54 cartas${min ? ` en ${min} min` : ''}.</p>
+    <div class="acciones">
+      <button class="btn primario" id="k-otra">Otra partida</button>
+      ${final ? '' : '<button class="btn" id="k-volver">Seguir cantando</button>'}
+      <button class="btn" id="k-menu">Salir al menú</button>
+    </div>`, { cerrable: false });
+  $('#k-otra', capa).onclick = () => {
+    cerrarDialogo();
+    nuevaBarajaCantor();
+    K.inicio = Date.now();
+    voz.decir('¡Se va y se corre!', perfil.voz);
+    renderCantor();
+    K.timer = setTimeout(() => cantarK(), 1400);
+  };
+  const v = $('#k-volver', capa);
+  if (v) v.onclick = () => {
+    cerrarDialogo();
+    K.pausado = estabaPausado;
+    renderCantor();
+    if (!K.pausado && K.velocidad !== 'manual') programarK();
+  };
+  $('#k-menu', capa).onclick = () => ir('inicio');
 }
 
 function detenerCantor() {
   if (K) clearTimeout(K.timer);
+  K = null;
 }
 
 // ---------------------------------------------------------------- imprimir

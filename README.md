@@ -9,7 +9,8 @@ App web móvil (HTML, CSS y JavaScript con módulos ES, sin paso de build) lista
 ## Qué incluye
 - 54 cartas con ilustraciones SVG y versos originales (`js/data`). 26 y 38 reemplazadas por El Ajolote y El Colibrí.
 - Motor de ronda (`js/engine/ronda.js`): 16 figuras + personalizadas, modo por etapas, verificación de gritos, grito en falso con penalización, empates (repartir, desempate, sorteo), varias tablas, ronda desierta con arrastre del pozo.
-- Modo solo contra rivales simulados, modo cantor para tablas físicas, tablas imprimibles (PDF vía imprimir), estadísticas, ajustes, voz del cantor (texto a voz), fichas personalizables, tema claro/oscuro, funciona sin internet (service worker).
+- Dos modos en el inicio: **Jugar en el celular** (contra rivales simulados) y **Solo cantor** para tablas físicas (empieza con un toque, botón "¡Alguien gritó Lotería!" para revisar las cartas que salieron y "Terminar" en cualquier momento).
+- Además: tablas imprimibles (PDF vía imprimir), estadísticas, ajustes, voz del cantor (texto a voz), fichas personalizables, tema claro/oscuro, funciona sin internet (service worker).
 - Monetización simulada (`js/services/ads.js`): intersticial al terminar ronda con límite (1 cada 2 rondas y 3 min), anuncio con recompensa (3.ª tabla 30 min), Premium.
 
 ## Siguiente fase
